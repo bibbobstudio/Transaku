@@ -32,7 +32,7 @@ jobs:
 
       - name: Build APK debug
         working-directory: android
-        run: ./gradlew assembleDebug
+        run: bash ./gradlew assembleDebug
 
       - name: Simpan APK untuk diunduh
         uses: actions/upload-artifact@v4
