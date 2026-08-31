@@ -1,5 +1,5 @@
 const STORE_KEY='ppobob-phase-1';
-const empty=()=>({customers:[],transactions:[],debt_payments:[],settings:{printer_size:'58mm'},meta:{version:1}});
+const empty=()=>({customers:[],transactions:[],debt_payments:[],settings:{printer_size:'58mm',token_prices:{20000:25000,50000:55000,100000:105000,200000:205000,500000:505000}},meta:{version:1}});
 let data=empty(); let nativeDb=null;
 const clone=v=>JSON.parse(JSON.stringify(v));
 async function nativeAvailable(){return Boolean(window.Capacitor?.isNativePlatform?.() && window.Capacitor?.Plugins?.CapacitorSQLite)}
