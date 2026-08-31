@@ -42,7 +42,7 @@ public class BluetoothPrinterPlugin extends Plugin {
     getBridge().execute(() -> {
       try {
         BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter(); BluetoothDevice device = adapter.getRemoteDevice(address);
-        BluetoothSocket socket = device.createRfcommSocketToServiceRecord(SPP_UUID); adapter.cancelDiscovery(); socket.connect();
+        BluetoothSocket socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID); adapter.cancelDiscovery(); socket.connect();
         OutputStream output = socket.getOutputStream(); output.write(data.getBytes(Charset.forName("CP437"))); output.flush(); output.close(); socket.close(); call.resolve();
       } catch (Exception error) { call.reject("Tidak dapat mencetak ke printer Bluetooth.", error); }
     });
