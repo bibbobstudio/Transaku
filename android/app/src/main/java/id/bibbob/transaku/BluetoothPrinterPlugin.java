@@ -37,14 +37,17 @@ public class BluetoothPrinterPlugin extends Plugin {
 
   @PluginMethod
   public void print(PluginCall call) {
-    String address = call.getString("address"); String data = call.getString("data", "");
+    String address = call.getString("address"); String data = call.getString("data", ""); String mode = call.getString("mode", "auto"); String encoding = call.getString("encoding", "CP437");
     if (address == null || address.isEmpty()) { call.reject("Pilih printer terlebih dahulu."); return; }
     getBridge().execute(() -> {
       try {
-        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter(); BluetoothDevice device = adapter.getRemoteDevice(address);
-        BluetoothSocket socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID); adapter.cancelDiscovery(); socket.connect();
-        OutputStream output = socket.getOutputStream(); output.write(data.getBytes(Charset.forName("CP437"))); output.flush(); output.close(); socket.close(); call.resolve();
-      } catch (Exception error) { call.reject("Tidak dapat mencetak ke printer Bluetooth.", error); }
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter(); BluetoothDevice device = adapter.getRemoteDevice(address); adapter.cancelDiscovery();
+        BluetoothSocket socket;
+        if ("secure".equals(mode)) { socket = device.createRfcommSocketToServiceRecord(SPP_UUID); socket.connect(); }
+        else if ("insecure".equals(mode)) { socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID); socket.connect(); }
+        else { try { socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID); socket.connect(); } catch (Exception firstError) { socket = device.createRfcommSocketToServiceRecord(SPP_UUID); socket.connect(); } }
+        OutputStream output = socket.getOutputStream(); output.write(data.getBytes(Charset.forName(encoding))); output.flush(); output.close(); socket.close(); call.resolve();
+      } catch (Exception error) { call.reject("Tidak dapat mencetak ke printer Bluetooth: " + error.getMessage(), error); }
     });
   }
 }
