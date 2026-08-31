@@ -1,0 +1,6 @@
+{
+  "appId": "id.bibbob.transaku",
+  "appName": "Transaku",
+  "webDir": "www",
+  "android": { "allowMixedContent": false }
+}
