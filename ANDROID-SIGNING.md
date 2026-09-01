@@ -9,6 +9,7 @@ Android hanya dapat memasang pembaruan bila APK baru memakai **kunci tanda tanga
 3. Setelah selesai, unduh artifact `Transaku-signing-key-RAHASIA`.
 4. Buka masing-masing file `.txt` di dalamnya dan buat GitHub Secret sesuai nama file (isi file menjadi nilai secret):
    `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, dan `ANDROID_KEY_PASSWORD`.
+   Dua file password sengaja berisi nilai yang sama.
 5. Simpan file `transaku-release.jks` di tempat aman sebagai cadangan, lalu hapus artifact dari GitHub setelah secret berhasil dibuat.
 
 File tersebut adalah identitas APK Transaku. Jangan unggah ke repository atau membagikannya.

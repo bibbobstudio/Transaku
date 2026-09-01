@@ -15,19 +15,19 @@ jobs:
 
       - name: Buat kunci Transaku
         run: |
-          STORE_PASSWORD="$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)"
-          KEY_PASSWORD="$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)"
+          # One password for both fields prevents a mix-up when secrets are added.
+          PASSWORD="$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)"
           keytool -genkeypair -v \
             -keystore transaku-release.jks \
-            -storepass "$STORE_PASSWORD" \
+            -storepass "$PASSWORD" \
             -alias transaku \
-            -keypass "$KEY_PASSWORD" \
+            -keypass "$PASSWORD" \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=Transaku, OU=Transaku, O=Transaku, L=Indonesia, ST=Indonesia, C=ID"
           base64 -w 0 transaku-release.jks > ANDROID_KEYSTORE_BASE64.txt
-          printf '%s' "$STORE_PASSWORD" > ANDROID_KEYSTORE_PASSWORD.txt
+          printf '%s' "$PASSWORD" > ANDROID_KEYSTORE_PASSWORD.txt
           printf '%s' 'transaku' > ANDROID_KEY_ALIAS.txt
-          printf '%s' "$KEY_PASSWORD" > ANDROID_KEY_PASSWORD.txt
+          printf '%s' "$PASSWORD" > ANDROID_KEY_PASSWORD.txt
 
       - name: Simpan kunci sekali unduh
         uses: actions/upload-artifact@v4
