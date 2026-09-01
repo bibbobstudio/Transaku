@@ -1,0 +1,42 @@
+name: Buat Kunci Tanda Tangan Android
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Siapkan Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Buat kunci Transaku
+        run: |
+          STORE_PASSWORD="$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)"
+          KEY_PASSWORD="$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)"
+          keytool -genkeypair -v \
+            -keystore transaku-release.jks \
+            -storepass "$STORE_PASSWORD" \
+            -alias transaku \
+            -keypass "$KEY_PASSWORD" \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Transaku, OU=Transaku, O=Transaku, L=Indonesia, ST=Indonesia, C=ID"
+          base64 -w 0 transaku-release.jks > ANDROID_KEYSTORE_BASE64.txt
+          printf '%s' "$STORE_PASSWORD" > ANDROID_KEYSTORE_PASSWORD.txt
+          printf '%s' 'transaku' > ANDROID_KEY_ALIAS.txt
+          printf '%s' "$KEY_PASSWORD" > ANDROID_KEY_PASSWORD.txt
+
+      - name: Simpan kunci sekali unduh
+        uses: actions/upload-artifact@v4
+        with:
+          name: Transaku-signing-key-RAHASIA
+          path: |
+            transaku-release.jks
+            ANDROID_KEYSTORE_BASE64.txt
+            ANDROID_KEYSTORE_PASSWORD.txt
+            ANDROID_KEY_ALIAS.txt
+            ANDROID_KEY_PASSWORD.txt
+          retention-days: 1
