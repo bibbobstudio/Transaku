@@ -9,8 +9,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // GitHub Actions supplies a higher value for every build. Android only
         // accepts an update when its versionCode is greater than the installed one.
-        versionCode (System.getenv("VERSION_CODE") ?: "1").toInteger()
-        versionName System.getenv("VERSION_NAME") ?: "1.0"
+        versionCode = Integer.parseInt(System.getenv("VERSION_CODE") ?: "1")
+        versionName = (System.getenv("VERSION_NAME") ?: "1.0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
