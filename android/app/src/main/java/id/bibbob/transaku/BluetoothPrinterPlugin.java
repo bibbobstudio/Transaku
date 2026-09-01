@@ -4,6 +4,7 @@ import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.util.Base64;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -37,7 +38,7 @@ public class BluetoothPrinterPlugin extends Plugin {
 
   @PluginMethod
   public void print(PluginCall call) {
-    String address = call.getString("address"); String data = call.getString("data", ""); String mode = call.getString("mode", "auto"); String encoding = call.getString("encoding", "CP437");
+    String address = call.getString("address"); String data = call.getString("data", ""); String dataBase64 = call.getString("dataBase64"); String mode = call.getString("mode", "auto"); String encoding = call.getString("encoding", "CP437");
     if (address == null || address.isEmpty()) { call.reject("Pilih printer terlebih dahulu."); return; }
     getBridge().execute(() -> {
       try {
@@ -46,7 +47,8 @@ public class BluetoothPrinterPlugin extends Plugin {
         if ("secure".equals(mode)) { socket = device.createRfcommSocketToServiceRecord(SPP_UUID); socket.connect(); }
         else if ("insecure".equals(mode)) { socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID); socket.connect(); }
         else { try { socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID); socket.connect(); } catch (Exception firstError) { socket = device.createRfcommSocketToServiceRecord(SPP_UUID); socket.connect(); } }
-        OutputStream output = socket.getOutputStream(); output.write(data.getBytes(Charset.forName(encoding))); output.flush(); output.close(); socket.close(); call.resolve();
+        byte[] printBytes = dataBase64 != null && !dataBase64.isEmpty() ? Base64.decode(dataBase64, Base64.DEFAULT) : data.getBytes(Charset.forName(encoding));
+        OutputStream output = socket.getOutputStream(); output.write(printBytes); output.flush(); output.close(); socket.close(); call.resolve();
       } catch (Exception error) { call.reject("Tidak dapat mencetak ke printer Bluetooth: " + error.getMessage(), error); }
     });
   }

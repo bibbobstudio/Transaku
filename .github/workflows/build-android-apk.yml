@@ -27,6 +27,9 @@ jobs:
       - name: Instal dependensi
         run: npm ci
 
+      - name: Siapkan mesin cetak gambar
+        run: mkdir -p www/vendor && cp node_modules/html2canvas/dist/html2canvas.min.js www/vendor/html2canvas.min.js
+
       - name: Sinkronkan Capacitor
         run: npx cap sync android
 
