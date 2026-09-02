@@ -48,7 +48,17 @@ public class BluetoothPrinterPlugin extends Plugin {
         else if ("insecure".equals(mode)) { socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID); socket.connect(); }
         else { try { socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID); socket.connect(); } catch (Exception firstError) { socket = device.createRfcommSocketToServiceRecord(SPP_UUID); socket.connect(); } }
         byte[] printBytes = dataBase64 != null && !dataBase64.isEmpty() ? Base64.decode(dataBase64, Base64.DEFAULT) : data.getBytes(Charset.forName(encoding));
-        OutputStream output = socket.getOutputStream(); output.write(printBytes); output.flush(); output.close(); socket.close(); call.resolve();
+        OutputStream output = socket.getOutputStream();
+        // Portable thermal printers have a small receive buffer. Sending a long
+        // raster receipt in one write can make them silently discard its footer.
+        for (int offset = 0; offset < printBytes.length; offset += 512) {
+          int length = Math.min(512, printBytes.length - offset);
+          output.write(printBytes, offset, length);
+          output.flush();
+          Thread.sleep(12);
+        }
+        Thread.sleep(250);
+        output.close(); socket.close(); call.resolve();
       } catch (Exception error) { call.reject("Tidak dapat mencetak ke printer Bluetooth: " + error.getMessage(), error); }
     });
   }
