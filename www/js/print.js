@@ -42,3 +42,17 @@ export async function printCanvasImage(source){
   const context=canvas.getContext('2d',{willReadFrequently:true});context.fillStyle='#fff';context.fillRect(0,0,width,height);context.drawImage(source,0,0,width,height);
   await bluetooth.print({address:printer.address,mode:printer.mode,encoding:printer.encoding,dataBase64:toBase64(rasterBytes(canvas,printer.image_protocol))});
 }
+
+export async function shareReceipt(){
+  const receipt=document.querySelector('#receipt'),html2canvas=window.html2canvas;if(!receipt)return;if(!html2canvas)throw new Error('Mesin pembuat gambar belum selesai dimuat. Refresh halaman lalu coba lagi.');
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  const canvas=await html2canvas(receipt,{backgroundColor:'#ffffff',scale:2,useCORS:true,logging:false,scrollX:0,scrollY:0});
+  const imageUrl=canvas.toDataURL('image/png'),dataBase64=imageUrl.split(',')[1],fileName=`struk-transaku-${new Date().toISOString().slice(0,10)}.png`,nativeShare=window.Capacitor?.Plugins?.ReceiptShare;
+  if(nativeShare){await nativeShare.share({dataBase64,fileName});return;}
+  const file=new File([await (await fetch(imageUrl)).blob()],fileName,{type:'image/png'});
+  if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:'Struk Transaku'});return;}
+  const link=document.createElement('a');link.href=imageUrl;link.download=fileName;link.click();
+}
+
+function addShareButton(){const receipt=document.querySelector('#receipt'),actions=document.querySelector('.actions.no-print');if(!receipt||!actions||actions.querySelector('#share-receipt'))return;const button=document.createElement('button');button.id='share-receipt';button.type='button';button.className='btn secondary';button.textContent='Share';button.onclick=async()=>{try{await shareReceipt()}catch(error){alert(error.message)}};const print=actions.querySelector('#print');if(print)print.insertAdjacentElement('afterend',button);else actions.append(button)}
+new MutationObserver(addShareButton).observe(document.querySelector('#app'),{childList:true,subtree:true});
