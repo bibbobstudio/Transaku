@@ -30,7 +30,7 @@ function debtBalanceForDate(date,transactions,payments){
 }
 
 function renderDay(date,groups,transactions,payments,capital,open=false){
-  const records=groups[date]||[],dailyMoney=records.reduce((sum,item)=>sum+recordTotal(item),0),dailyDebt=debtBalanceForDate(date,transactions,payments),dailyCapital=Number(capital.initial||0)+capital.contributions.filter(item=>dateKey(item.created_at)<=date).reduce((sum,item)=>sum+Number(item.amount||0),0),total=dailyMoney+dailyDebt,globalProfit=total-dailyCapital,previousDate=new Date(`${date}T00:00:00`);previousDate.setDate(previousDate.getDate()-1);const previousKey=`${previousDate.getFullYear()}-${String(previousDate.getMonth()+1).padStart(2,'0')}-${String(previousDate.getDate()).padStart(2,'0')}`,previousTotal=(capital.dailyTotals[previousKey]||0)+debtBalanceForDate(previousKey,transactions,payments),dailyProfit=total-previousTotal;
+  const records=groups[date]||[],dailyMoney=records.reduce((sum,item)=>sum+recordTotal(item),0),dailyDebt=debtBalanceForDate(date,transactions,payments),initialCapital=capital.initialHistory.filter(item=>item.date<=date).at(-1)?.amount||0,dailyCapital=Number(initialCapital)+capital.contributions.filter(item=>dateKey(item.created_at)<=date).reduce((sum,item)=>sum+Number(item.amount||0),0),total=dailyMoney+dailyDebt,globalProfit=total-dailyCapital,previousKey=Object.keys(capital.dailyTotals).filter(day=>day<date).sort().at(-1),previousTotal=previousKey?(capital.dailyTotals[previousKey]||0)+debtBalanceForDate(previousKey,transactions,payments):0,dailyProfit=Number(date.slice(8,10))===1?globalProfit:total-previousTotal;
   const entries=records.map(item=>`<div class="list-item"><div class="grow"><strong>${formatMoney(recordTotal(item))} · ${item.type==='account'?'Rekening':'Cash'}</strong>${item.type==='account'?`<p>${accounts.map((name,index)=>{const value=Number(item.accounts?.[name]||item.accounts?.[index]||0);return value?`${name}: ${formatMoney(value)}`:''}).filter(Boolean).join(' · ')}</p>`:item.bills?`<p>${denominations.map(value=>item.bills[value]?`${formatMoney(value)} × ${item.bills[value]} lembar`:'' ).filter(Boolean).join(' · ')}</p>`:''}${item.note?`<p>${escapeHtml(item.note)}</p>`:''}</div><div class="cash-item-actions"><button class="btn secondary" data-cash-edit="${item.id}">Edit</button><button class="btn danger" data-cash-delete="${item.id}">Hapus</button></div></div>`).join('');
   const globalProfitClass=globalProfit<0?'cash-profit-loss':'cash-profit-positive',dailyProfitClass=dailyProfit<0?'cash-profit-loss':'cash-profit-positive';
   const headlineIsToday=date===localToday(),headlineProfit=headlineIsToday?dailyProfit:globalProfit,headlineLabel=headlineIsToday?'Keuntungan hari ini':'Keuntungan global',headlineClass=headlineProfit<0?'cash-profit-loss':'cash-profit-positive';
@@ -38,10 +38,10 @@ function renderDay(date,groups,transactions,payments,capital,open=false){
 }
 
 async function getCashData(){
-  const [records,transactions,payments,contributions,data]=await Promise.all([db.cashRecords(),db.transactions(),db.debtPayments(),db.capitalContributions(),db.export()]);
+  const [records,transactions,payments,contributions,initialHistory]=await Promise.all([db.cashRecords(),db.transactions(),db.debtPayments(),db.capitalContributions(),db.initialCapitalHistory()]);
   const groups=records.reduce((result,item)=>((result[item.date]??=[]).push(item),result),{});
-  const dates=[...new Set([...Object.keys(groups),...transactions.filter(item=>Number(item.balance_due)>0||payments.some(payment=>payment.transaction_id===item.id)).map(item=>dateKey(item.created_at)),...payments.map(payment=>dateKey(payment.created_at)),...contributions.map(item=>dateKey(item.created_at))])].sort((a,b)=>b.localeCompare(a));
-  const dailyTotals=records.reduce((result,item)=>{result[item.date]=(result[item.date]||0)+recordTotal(item);return result},{}),capital={initial:Number(data.settings?.initial_capital||0),contributions,cashRecords:records,dailyTotals};
+  const dates=[...Object.keys(groups)].sort((a,b)=>b.localeCompare(a));
+  const dailyTotals=records.reduce((result,item)=>{result[item.date]=(result[item.date]||0)+recordTotal(item);return result},{}),capital={initialHistory,contributions,cashRecords:records,dailyTotals};
   return {groups,transactions,payments,dates,capital};
 }
 
@@ -69,13 +69,13 @@ export async function showCash(editId=null){
   document.querySelector('#page-title').textContent='Uang';
   editId=editId||sessionStorage.getItem('transaku-cash-edit-id');sessionStorage.removeItem('transaku-cash-edit-id');
   const {groups,transactions,payments,capital}=await getCashData(),today=localToday(),editRecord=editId?(await db.cashRecords()).find(item=>item.id===editId):null;
-  document.querySelector('#app').innerHTML=`<h1>Catatan uang</h1><p class="muted">Tambahkan catatan uang dan lihat ringkasan hari ini.</p>${renderForm()}<section id="cash-today">${renderDay(today,groups,transactions,payments,capital,true)}</section><button class="btn secondary cash-all-button" id="all-cash-records">Semua catatan</button>`;
-  connectForm(editRecord);document.querySelector('#all-cash-records').onclick=()=>navigate('/cash-history');connectRecordButtons();
+  document.querySelector('#app').innerHTML=`<h1>Catatan uang</h1><p class="muted">Tambahkan catatan uang dan lihat ringkasan hari ini.</p>${renderForm()}<section id="cash-today">${renderDay(today,groups,transactions,payments,capital,true)}</section><div class="cash-page-actions"><button class="btn secondary" id="cash-capital-settings">Atur modal</button><button class="btn secondary cash-all-button" id="all-cash-records">Semua catatan</button></div>`;
+  connectForm(editRecord);document.querySelector('#cash-capital-settings').onclick=()=>navigate('/capital');document.querySelector('#all-cash-records').onclick=()=>navigate('/cash-history');connectRecordButtons();
 }
 
 export async function showCashHistory(){
   document.querySelector('#page-title').textContent='Semua catatan uang';
   const {groups,transactions,payments,dates,capital}=await getCashData();
-  document.querySelector('#app').innerHTML=`<div class="cash-history-heading"><div><h1>Semua catatan uang</h1><p class="muted">Daftar uang dan saldo hutang per hari.</p></div><button class="btn secondary" id="back-to-cash">Kembali</button></div><section id="cash-days">${dates.length?dates.map(date=>renderDay(date,groups,transactions,payments,capital)).join(''):'<div class="empty">Belum ada catatan uang atau hutang.</div>'}</section>`;
-  document.querySelector('#back-to-cash').onclick=()=>navigate('/cash');connectRecordButtons();
+  document.querySelector('#app').innerHTML=`<div class="cash-history-heading"><div><h1>Semua catatan uang</h1><p class="muted">Daftar uang dan saldo hutang per hari.</p></div></div><div class="quick-values cash-history-filters"><button type="button" data-cash-period="all" class="active">Semua</button><button type="button" data-cash-period="week">Minggu ini</button><button type="button" data-cash-period="month">Bulan ini</button></div><section id="cash-days"></section>`;
+  const list=document.querySelector('#cash-days'),render=period=>{const now=new Date(),today=localToday(),startWeek=new Date(now);startWeek.setDate(now.getDate()-((now.getDay()+6)%7));startWeek.setHours(0,0,0,0);const startWeekKey=`${startWeek.getFullYear()}-${String(startWeek.getMonth()+1).padStart(2,'0')}-${String(startWeek.getDate()).padStart(2,'0')}`,startMonth=today.slice(0,7);const filtered=dates.filter(date=>period==='all'||period==='week'&&date>=startWeekKey&&date<=today||period==='month'&&date.startsWith(startMonth));list.innerHTML=filtered.length?filtered.map(date=>renderDay(date,groups,transactions,payments,capital)).join(''):'<div class="empty">Tidak ada catatan uang pada periode ini.</div>';connectRecordButtons()};document.querySelectorAll('[data-cash-period]').forEach(button=>button.onclick=()=>{document.querySelectorAll('[data-cash-period]').forEach(item=>item.classList.toggle('active',item===button));render(button.dataset.cashPeriod)});render('all');
 }
