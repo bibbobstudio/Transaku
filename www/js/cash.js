@@ -29,17 +29,20 @@ function debtBalanceForDate(date,transactions,payments){
   },0);
 }
 
-function renderDay(date,groups,transactions,payments,open=false){
-  const records=groups[date]||[],dailyMoney=records.reduce((sum,item)=>sum+recordTotal(item),0),dailyDebt=debtBalanceForDate(date,transactions,payments),total=dailyMoney+dailyDebt;
+function renderDay(date,groups,transactions,payments,capital,open=false){
+  const records=groups[date]||[],dailyMoney=records.reduce((sum,item)=>sum+recordTotal(item),0),dailyDebt=debtBalanceForDate(date,transactions,payments),dailyCapital=Number(capital.initial||0)+capital.contributions.filter(item=>dateKey(item.created_at)<=date).reduce((sum,item)=>sum+Number(item.amount||0),0),total=dailyMoney+dailyDebt,globalProfit=total-dailyCapital,previousDate=new Date(`${date}T00:00:00`);previousDate.setDate(previousDate.getDate()-1);const previousKey=`${previousDate.getFullYear()}-${String(previousDate.getMonth()+1).padStart(2,'0')}-${String(previousDate.getDate()).padStart(2,'0')}`,previousTotal=(capital.dailyTotals[previousKey]||0)+debtBalanceForDate(previousKey,transactions,payments),dailyProfit=total-previousTotal;
   const entries=records.map(item=>`<div class="list-item"><div class="grow"><strong>${formatMoney(recordTotal(item))} · ${item.type==='account'?'Rekening':'Cash'}</strong>${item.type==='account'?`<p>${accounts.map((name,index)=>{const value=Number(item.accounts?.[name]||item.accounts?.[index]||0);return value?`${name}: ${formatMoney(value)}`:''}).filter(Boolean).join(' · ')}</p>`:item.bills?`<p>${denominations.map(value=>item.bills[value]?`${formatMoney(value)} × ${item.bills[value]} lembar`:'' ).filter(Boolean).join(' · ')}</p>`:''}${item.note?`<p>${escapeHtml(item.note)}</p>`:''}</div><div class="cash-item-actions"><button class="btn secondary" data-cash-edit="${item.id}">Edit</button><button class="btn danger" data-cash-delete="${item.id}">Hapus</button></div></div>`).join('');
-  return `<details class="cash-day card" ${open?'open':''}><summary class="cash-day-summary"><h2>${dateLabel(date)}</h2><strong class="cash-money-total">Total uang: ${formatMoney(total)}</strong></summary><div class="cash-day-details"><p class="cash-debt-total">Total hutang: <b>${formatMoney(dailyDebt)}</b></p><p class="cash-money-detail">Total uang: <b>${formatMoney(total)}</b></p><div class="list">${entries||'<p class="muted">Tidak ada catatan uang untuk tanggal ini.</p>'}</div></div></details>`;
+  const globalProfitClass=globalProfit<0?'cash-profit-loss':'cash-profit-positive',dailyProfitClass=dailyProfit<0?'cash-profit-loss':'cash-profit-positive';
+  const headlineIsToday=date===localToday(),headlineProfit=headlineIsToday?dailyProfit:globalProfit,headlineLabel=headlineIsToday?'Keuntungan hari ini':'Keuntungan global',headlineClass=headlineProfit<0?'cash-profit-loss':'cash-profit-positive';
+  return `<details class="cash-day card" ${open?'open':''}><summary class="cash-day-summary"><h2>${dateLabel(date)}</h2><strong class="cash-day-headline ${headlineClass}">${headlineLabel}: ${formatMoney(headlineProfit)}</strong></summary><div class="cash-day-details"><div class="cash-summary-grid"><div class="cash-summary-tile cash-capital-total"><span>Kas</span><b>${formatMoney(dailyMoney)}</b></div><div class="cash-summary-tile cash-capital-total"><span>Total Modal</span><b>${formatMoney(dailyCapital)}</b></div><div class="cash-summary-tile cash-debt-total"><span>Total Hutang</span><b>${formatMoney(dailyDebt)}</b></div><div class="cash-summary-tile ${globalProfitClass}"><span>Keuntungan Global</span><b>${formatMoney(globalProfit)}</b>${globalProfit<0?'<small>Total uang masih di bawah total modal.</small>':''}</div><div class="cash-summary-tile cash-money-detail"><span>Total Uang</span><b>${formatMoney(total)}</b></div><div class="cash-summary-tile ${dailyProfitClass}"><span>Keuntungan Hari Ini</span><b>${formatMoney(dailyProfit)}</b>${dailyProfit<0?'<small>Total uang turun dibanding hari sebelumnya.</small>':''}</div></div><div class="list">${entries||'<p class="muted">Tidak ada catatan uang untuk tanggal ini.</p>'}</div></div></details>`;
 }
 
 async function getCashData(){
-  const [records,transactions,payments]=await Promise.all([db.cashRecords(),db.transactions(),db.debtPayments()]);
+  const [records,transactions,payments,contributions,data]=await Promise.all([db.cashRecords(),db.transactions(),db.debtPayments(),db.capitalContributions(),db.export()]);
   const groups=records.reduce((result,item)=>((result[item.date]??=[]).push(item),result),{});
-  const dates=[...new Set([...Object.keys(groups),...transactions.filter(item=>Number(item.balance_due)>0||payments.some(payment=>payment.transaction_id===item.id)).map(item=>dateKey(item.created_at)),...payments.map(payment=>dateKey(payment.created_at))])].sort((a,b)=>b.localeCompare(a));
-  return {groups,transactions,payments,dates};
+  const dates=[...new Set([...Object.keys(groups),...transactions.filter(item=>Number(item.balance_due)>0||payments.some(payment=>payment.transaction_id===item.id)).map(item=>dateKey(item.created_at)),...payments.map(payment=>dateKey(payment.created_at)),...contributions.map(item=>dateKey(item.created_at))])].sort((a,b)=>b.localeCompare(a));
+  const dailyTotals=records.reduce((result,item)=>{result[item.date]=(result[item.date]||0)+recordTotal(item);return result},{}),capital={initial:Number(data.settings?.initial_capital||0),contributions,cashRecords:records,dailyTotals};
+  return {groups,transactions,payments,dates,capital};
 }
 
 function renderForm(){
@@ -65,14 +68,14 @@ function connectRecordButtons(){document.querySelectorAll('[data-cash-edit]').fo
 export async function showCash(editId=null){
   document.querySelector('#page-title').textContent='Uang';
   editId=editId||sessionStorage.getItem('transaku-cash-edit-id');sessionStorage.removeItem('transaku-cash-edit-id');
-  const {groups,transactions,payments}=await getCashData(),today=localToday(),editRecord=editId?(await db.cashRecords()).find(item=>item.id===editId):null;
-  document.querySelector('#app').innerHTML=`<h1>Catatan uang</h1><p class="muted">Tambahkan catatan uang dan lihat ringkasan hari ini.</p>${renderForm()}<section id="cash-today">${renderDay(today,groups,transactions,payments,true)}</section><button class="btn secondary cash-all-button" id="all-cash-records">Semua catatan</button>`;
+  const {groups,transactions,payments,capital}=await getCashData(),today=localToday(),editRecord=editId?(await db.cashRecords()).find(item=>item.id===editId):null;
+  document.querySelector('#app').innerHTML=`<h1>Catatan uang</h1><p class="muted">Tambahkan catatan uang dan lihat ringkasan hari ini.</p>${renderForm()}<section id="cash-today">${renderDay(today,groups,transactions,payments,capital,true)}</section><button class="btn secondary cash-all-button" id="all-cash-records">Semua catatan</button>`;
   connectForm(editRecord);document.querySelector('#all-cash-records').onclick=()=>navigate('/cash-history');connectRecordButtons();
 }
 
 export async function showCashHistory(){
   document.querySelector('#page-title').textContent='Semua catatan uang';
-  const {groups,transactions,payments,dates}=await getCashData();
-  document.querySelector('#app').innerHTML=`<div class="cash-history-heading"><div><h1>Semua catatan uang</h1><p class="muted">Daftar uang dan saldo hutang per hari.</p></div><button class="btn secondary" id="back-to-cash">Kembali</button></div><section id="cash-days">${dates.length?dates.map(date=>renderDay(date,groups,transactions,payments)).join(''):'<div class="empty">Belum ada catatan uang atau hutang.</div>'}</section>`;
+  const {groups,transactions,payments,dates,capital}=await getCashData();
+  document.querySelector('#app').innerHTML=`<div class="cash-history-heading"><div><h1>Semua catatan uang</h1><p class="muted">Daftar uang dan saldo hutang per hari.</p></div><button class="btn secondary" id="back-to-cash">Kembali</button></div><section id="cash-days">${dates.length?dates.map(date=>renderDay(date,groups,transactions,payments,capital)).join(''):'<div class="empty">Belum ada catatan uang atau hutang.</div>'}</section>`;
   document.querySelector('#back-to-cash').onclick=()=>navigate('/cash');connectRecordButtons();
 }
