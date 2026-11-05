@@ -5,3 +5,4 @@
 .cash-day-headline{margin-right:14px}
 .cash-page-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .cash-history-filters button.active{background:#0b63f6;color:#fff;border-color:#0b63f6}
+.debt-snapshot-dialog{width:min(92vw,440px);max-width:none;border:1px solid #dbe5f5;border-radius:16px;padding:20px;color:#17221a;box-shadow:0 20px 60px #10182833}.debt-snapshot-dialog::backdrop{background:#10182880}.debt-snapshot-dialog h2{margin:0 0 8px;color:#0b63f6}.debt-snapshot-dialog>p{margin:8px 0}.debt-snapshot-values{margin:14px 0;padding:10px 13px;border-radius:12px;background:#f3f7ff}.debt-snapshot-values p{display:flex;justify-content:space-between;gap:10px;margin:7px 0}.debt-snapshot-values b{text-align:right}.debt-snapshot-dialog .actions{margin-top:16px}
