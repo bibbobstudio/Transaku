@@ -4,3 +4,4 @@
 .bottom-nav a{font-size:0;display:flex;min-width:48px;flex-direction:column;align-items:center;justify-content:center;gap:2px}.bottom-nav a svg{width:23px;height:23px;fill:currentColor}.bottom-nav a span{font-size:10px}.icon-button{display:grid;place-items:center}.icon-button svg{width:25px;height:25px;fill:currentColor}
 .customer-open-debts{margin-top:20px}.customer-open-debts h2{color:#0b63f6}.customer-debt-amount{color:#b42318;white-space:nowrap}
 .customer-open-debts .customer-debt-actions{margin:12px 0}.customer-open-debts form[hidden]{display:none!important}
+.form-grid #transfer-panel[hidden]{display:none!important}
