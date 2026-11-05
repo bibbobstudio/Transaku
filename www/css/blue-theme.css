@@ -2,3 +2,5 @@
 .customer-debt{min-width:76px;text-align:right;color:#15803d}.customer-debt small,.customer-debt b{display:block}.customer-debt small{font-size:11px}.customer-debt b{font-size:13px}.customer-debt.has-debt{color:#c2410c}
 .customer-filters{margin-top:14px}.customer-filters button.selected{background:#0b63f6;color:#fff;border-color:#0b63f6}
 .bottom-nav a{font-size:0;display:flex;min-width:48px;flex-direction:column;align-items:center;justify-content:center;gap:2px}.bottom-nav a svg{width:23px;height:23px;fill:currentColor}.bottom-nav a span{font-size:10px}.icon-button{display:grid;place-items:center}.icon-button svg{width:25px;height:25px;fill:currentColor}
+.customer-open-debts{margin-top:20px}.customer-open-debts h2{color:#0b63f6}.customer-debt-amount{color:#b42318;white-space:nowrap}
+.customer-open-debts .customer-debt-actions{margin:12px 0}.customer-open-debts form[hidden]{display:none!important}
