@@ -12,13 +12,17 @@ import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ConcurrentHashMap;
 
 @CapacitorPlugin(name = "BackupFile")
 public class BackupFilePlugin extends Plugin {
+  private final ConcurrentHashMap<String, String> pendingContents = new ConcurrentHashMap<>();
+
   @PluginMethod
   public void save(PluginCall call) {
     String content = call.getString("content"), fileName = call.getString("fileName", "transaku-backup.json");
-    if (content == null) { call.reject("Isi backup tidak tersedia."); return; }
+    if (content == null || content.isEmpty()) { call.reject("Isi backup kosong; file tidak disimpan."); return; }
+    pendingContents.put(call.getCallbackId(), content);
     Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
     intent.addCategory(Intent.CATEGORY_OPENABLE);
     intent.setType("application/json");
@@ -28,14 +32,18 @@ public class BackupFilePlugin extends Plugin {
 
   @ActivityCallback
   private void saveResult(PluginCall call, ActivityResult result) {
-    if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) { call.reject("Penyimpanan backup dibatalkan."); return; }
+    if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) { pendingContents.remove(call.getCallbackId()); call.reject("Penyimpanan backup dibatalkan."); return; }
     try {
       Uri uri = result.getData().getData();
-      String content = call.getString("content", "");
+      String content = pendingContents.remove(call.getCallbackId());
+      if (content == null || content.isEmpty()) { call.reject("Isi backup kosong; file tidak disimpan."); return; }
+      byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
       try (OutputStream stream = getContext().getContentResolver().openOutputStream(uri)) {
-        stream.write(content.getBytes(StandardCharsets.UTF_8));
+        if (stream == null) { call.reject("Lokasi penyimpanan tidak dapat dibuka."); return; }
+        stream.write(bytes);
+        stream.flush();
       }
-      JSObject response = new JSObject(); response.put("uri", uri.toString()); call.resolve(response);
-    } catch (Exception error) { call.reject("Gagal menyimpan backup: " + error.getMessage(), error); }
+      JSObject response = new JSObject(); response.put("uri", uri.toString()); response.put("bytes", bytes.length); call.resolve(response);
+    } catch (Exception error) { pendingContents.remove(call.getCallbackId()); call.reject("Gagal menyimpan backup: " + error.getMessage(), error); }
   }
 }
