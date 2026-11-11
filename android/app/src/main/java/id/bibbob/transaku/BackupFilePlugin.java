@@ -10,22 +10,28 @@ import com.getcapacitor.PluginMethod;
 import androidx.activity.result.ActivityResult;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.FilterOutputStream;
 import java.io.IOException;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ConcurrentHashMap;
 
 @CapacitorPlugin(name = "BackupFile")
 public class BackupFilePlugin extends Plugin {
-  private final ConcurrentHashMap<String, String> pendingContents = new ConcurrentHashMap<>();
+  private File pendingFile() { return new File(getContext().getCacheDir(), "transaku-backup-pending.json"); }
 
   @PluginMethod
   public void save(PluginCall call) {
     String content = call.getString("content"), fileName = call.getString("fileName", "transaku-backup.json");
     if (content == null || content.isEmpty()) { call.reject("Isi backup kosong; file tidak disimpan."); return; }
-    pendingContents.put(call.getCallbackId(), content);
+    try (Writer writer = new OutputStreamWriter(new FileOutputStream(pendingFile()), StandardCharsets.UTF_8)) {
+      writer.write(content);
+    } catch (Exception error) { call.reject("Gagal menyiapkan backup: " + error.getMessage(), error); return; }
     Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
     intent.addCategory(Intent.CATEGORY_OPENABLE);
     intent.setType("application/json");
@@ -35,21 +41,23 @@ public class BackupFilePlugin extends Plugin {
 
   @ActivityCallback
   private void saveResult(PluginCall call, ActivityResult result) {
-    if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) { pendingContents.remove(call.getCallbackId()); call.reject("Penyimpanan backup dibatalkan."); return; }
+    File cached = pendingFile();
+    if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) { cached.delete(); call.reject("Penyimpanan backup dibatalkan."); return; }
     try {
       Uri uri = result.getData().getData();
-      String content = pendingContents.remove(call.getCallbackId());
-      if (content == null) content = call.getString("content");
-      if (content == null || content.isEmpty()) { call.reject("Isi backup kosong; file tidak disimpan."); return; }
+      if (!cached.isFile() || cached.length() == 0) { call.reject("Data backup sementara hilang sebelum disimpan. Coba lagi dan jangan tutup aplikasi saat pemilih file terbuka."); return; }
       OutputStream raw = getContext().getContentResolver().openOutputStream(uri, "wt");
       if (raw == null) { call.reject("Lokasi penyimpanan tidak dapat dibuka."); return; }
       CountingOutputStream stream = new CountingOutputStream(raw);
-      try (OutputStreamWriter writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)) {
-        writer.write(content);
+      try (InputStream input = new FileInputStream(cached); OutputStream output = stream) {
+        byte[] buffer = new byte[16 * 1024];
+        int length;
+        while ((length = input.read(buffer)) != -1) output.write(buffer, 0, length);
       }
       if (stream.count == 0) { call.reject("Android tidak menulis isi backup ke file."); return; }
+      cached.delete();
       JSObject response = new JSObject(); response.put("uri", uri.toString()); response.put("bytes", stream.count); call.resolve(response);
-    } catch (Exception error) { pendingContents.remove(call.getCallbackId()); call.reject("Gagal menyimpan backup: " + error.getMessage(), error); }
+    } catch (Exception error) { call.reject("Gagal menyimpan backup: " + error.getMessage(), error); }
   }
 
   private static class CountingOutputStream extends FilterOutputStream {
