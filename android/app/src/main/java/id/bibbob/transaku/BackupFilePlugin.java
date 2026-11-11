@@ -11,6 +11,9 @@ import androidx.activity.result.ActivityResult;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.FilterOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -36,14 +39,23 @@ public class BackupFilePlugin extends Plugin {
     try {
       Uri uri = result.getData().getData();
       String content = pendingContents.remove(call.getCallbackId());
+      if (content == null) content = call.getString("content");
       if (content == null || content.isEmpty()) { call.reject("Isi backup kosong; file tidak disimpan."); return; }
-      byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-      try (OutputStream stream = getContext().getContentResolver().openOutputStream(uri)) {
-        if (stream == null) { call.reject("Lokasi penyimpanan tidak dapat dibuka."); return; }
-        stream.write(bytes);
-        stream.flush();
+      OutputStream raw = getContext().getContentResolver().openOutputStream(uri, "wt");
+      if (raw == null) { call.reject("Lokasi penyimpanan tidak dapat dibuka."); return; }
+      CountingOutputStream stream = new CountingOutputStream(raw);
+      try (OutputStreamWriter writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)) {
+        writer.write(content);
       }
-      JSObject response = new JSObject(); response.put("uri", uri.toString()); response.put("bytes", bytes.length); call.resolve(response);
+      if (stream.count == 0) { call.reject("Android tidak menulis isi backup ke file."); return; }
+      JSObject response = new JSObject(); response.put("uri", uri.toString()); response.put("bytes", stream.count); call.resolve(response);
     } catch (Exception error) { pendingContents.remove(call.getCallbackId()); call.reject("Gagal menyimpan backup: " + error.getMessage(), error); }
+  }
+
+  private static class CountingOutputStream extends FilterOutputStream {
+    long count = 0;
+    CountingOutputStream(OutputStream output) { super(output); }
+    @Override public void write(int value) throws IOException { out.write(value); count++; }
+    @Override public void write(byte[] buffer, int offset, int length) throws IOException { out.write(buffer, offset, length); count += length; }
   }
 }
